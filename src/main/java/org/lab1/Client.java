@@ -1,5 +1,7 @@
 package org.lab1;
 
+import java.net.Socket;
+
 public class Client {
     public String getIp() {
         return ip;
@@ -20,6 +22,15 @@ public class Client {
     public Client(String ip, String mac) {
         this.ip = ip;
         this.mac = mac;
+    }
+
+    public void connectToRouter(String ip, int port) {
+        try (Socket socket = new Socket(ip, port)) {
+            String sendString = "CONNECT " + ip + " " + mac;
+            socket.getOutputStream().write(sendString.getBytes());
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+        }
     }
 
     private String generateIp() {
