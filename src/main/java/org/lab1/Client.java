@@ -53,7 +53,11 @@ public class Client {
     private String generateMac() {
         StringBuilder generatedString = new StringBuilder();
         for (int i = 0; i < 6; i++) {
-            generatedString.append(Integer.toHexString((int) (Math.random() * 1000) % 256));
+            String append = Integer.toHexString((int) (Math.random() * 1000) % 256);
+            generatedString.append(append);
+            if (append.length() < 2) {
+                generatedString.append(0);
+            }
             if (i == 5) {
                 break;
             }

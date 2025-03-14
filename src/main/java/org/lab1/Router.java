@@ -12,6 +12,7 @@ public class Router {
 
     Router() {
         try {
+            routingTable = new HashMap<>();
             server = new ServerSocket(port);
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -26,7 +27,7 @@ public class Router {
     public void start() {
         new Thread(() -> {
             listenNewClients();
-        });
+        }).start();
     }
 
     private void listenNewClients() {
@@ -37,7 +38,6 @@ public class Router {
             } catch (Exception e) {
                 System.err.println(e.getMessage());
             }
-
         }
     }
 
@@ -56,6 +56,6 @@ public class Router {
 
     private String[] parseCommand(byte[] data) {
         String string = new String(data);
-        return string.split(" ");
+        return string.trim().split(" ");
     }
 }
