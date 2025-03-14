@@ -10,7 +10,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class Router {
-    private final ConcurrentHashMap<String, RouterClient> routingTable = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> routingTable = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RouterClient> pingMap = new ConcurrentHashMap<>();
     private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
     private ServerSocket server;
     private final int port = 80;
@@ -57,53 +58,56 @@ public class Router {
             clientIp = attributes[1];
             String clientMac = attributes[2];
 
-            routingTable.put(clientIp, new RouterClient(clientIp, clientMac, socket));
+            routingTable.put(clientIp, clientMac);
+            pingMap.put(clientMac, new RouterClient(clientIp, clientMac, socket));
             System.out.println("Router info: new client connected " + clientIp + " " + clientMac);
 
             while (isRunning && !socket.isClosed()) {
-                byte[] message = routingTable.get(clientIp).getClientMessage();
+                byte[] message = pingMap.get(routingTable.get(clientIp)).getClientMessage();
                 if (message != null) {
-                    processCommand(clientIp, message);
+                    processCommand(clientMac, message);
                 }
             }
         } catch (IOException e) {
             System.err.println("Error handling client: " + e.getMessage());
-        } finally {
-            try {
-                if (clientIp != null) {
-                    routingTable.remove(clientIp);
-                    socket.close();
-                }
-            } catch (IOException e) {
-                System.err.println("Error closing socket: " + e.getMessage());
+        }
+        try {
+            if (clientIp != null) {
+                String mac = routingTable.get(clientIp);
+                routingTable.remove(clientIp);
+                pingMap.remove(mac);
+                socket.close();
             }
+        } catch (IOException e) {
+            System.err.println("Error closing socket: " + e.getMessage());
         }
     }
 
-    private void processCommand(String clientIp, byte[] message) {
+    private void processCommand(String clientMac, byte[] message) {
         String[] attributes = parseCommand(message);
-        RouterClient client = routingTable.get(clientIp);
+        RouterClient client = pingMap.get(clientMac);
 
         if ("PING".equals(attributes[0])) {
             String targetIp = attributes[1];
+            long time = -System.currentTimeMillis();
             boolean doesExist = routingTable.containsKey(targetIp);
 
-            if (doesExist && routingTable.get(targetIp).socket().isConnected()) {
-                long time = -System.currentTimeMillis();
+            if (doesExist && pingMap.get(routingTable.get(targetIp)).socket().isConnected()) {
                 time += System.currentTimeMillis();
-                System.out.println("Router info: ping request from: " + clientIp + " to " + targetIp);
+                System.out.println("Router info: ping request from: " + client.ip() + " to " + targetIp);
                 client.sendMessageClient("Answer from " + targetIp + ": bytes=32 time=" + time + "ms TTL=1");
             } else {
-                System.out.println("Router warning: ping request from: " + clientIp + " to " + targetIp + " failed");
+                System.out.println("Router warning: ping request from: " + client.ip() + " to " + targetIp + " failed");
                 client.sendMessageClient("Checking the network could not find: " + targetIp);
             }
         } else if ("DISCONNECT".equals(attributes[0])) {
             try {
-                System.out.println("Router info: closed the connection with " + clientIp);
-                routingTable.remove(clientIp);
+                System.out.println("Router info: closed the connection with " + client.ip());
+                routingTable.remove(client.ip());
+                pingMap.remove(client.mac());
                 client.socket().close();
             } catch (IOException e) {
-                System.out.println("Router warning: closing connection with " + clientIp + " failed");
+                System.out.println("Router warning: closing connection with " + client.ip() + " failed");
             }
         }
     }
