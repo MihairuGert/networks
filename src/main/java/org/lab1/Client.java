@@ -24,6 +24,11 @@ public class Client {
         this.mac = mac;
     }
 
+    public static void main(String[] args) {
+        Client client = new Client();
+        client.connectToRouter("localhost", 80);
+    }
+
     public void connectToRouter(String ip, int port) {
         try (Socket socket = new Socket(ip, port)) {
             String sendString = "CONNECT " + ip + " " + mac;

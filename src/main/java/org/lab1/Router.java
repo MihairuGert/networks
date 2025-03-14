@@ -18,13 +18,21 @@ public class Router {
         }
     }
 
+    public static void main(String[] args) {
+        Router router = new Router();
+        router.start();
+    }
+
     public void start() {
-        new Thread(this::listenNewClients);
+        new Thread(() -> {
+            listenNewClients();
+        });
     }
 
     private void listenNewClients() {
         while(true) {
-            try (Socket socket = server.accept()) {
+            try {
+                Socket socket = server.accept();
                 addClient(socket);
             } catch (Exception e) {
                 System.err.println(e.getMessage());
@@ -39,6 +47,7 @@ public class Router {
             byte[] bytes = new byte[256];
             int status = inputStream.read(bytes);
             String[] attributes = parseCommand(bytes);
+            System.out.println("Router info: new client connected " + attributes[1] + " " + attributes[2]);
             routingTable.put(attributes[1], new Client(attributes[1], attributes[2]));
         } catch (IOException e) {
             System.err.println(e.getMessage());
