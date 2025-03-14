@@ -1,5 +1,6 @@
 package org.lab1;
 
+import java.net.InetAddress;
 import java.net.Socket;
 
 public class Client {
@@ -31,10 +32,24 @@ public class Client {
 
     public void connectToRouter(String ip, int port) {
         try (Socket socket = new Socket(ip, port)) {
-            String sendString = "CONNECT " + ip + " " + mac;
+            String localIp = getLocalIp();
+            if (localIp == null) {
+                socket.close();
+                return;
+            }
+            String sendString = "CONNECT " + localIp + " " + mac;
             socket.getOutputStream().write(sendString.getBytes());
         } catch (Exception e) {
             System.err.println(e.getMessage());
+        }
+    }
+
+    private String getLocalIp() {
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            return localHost.getHostAddress();
+        } catch (Exception e) {
+            return null;
         }
     }
 
