@@ -2,20 +2,25 @@ package org.lab1;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.*;
-import java.util.HashMap;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Router {
-    private HashMap<String, Client> routingTable;
+    private final ConcurrentHashMap<String, RouterClient> routingTable = new ConcurrentHashMap<>();
+    private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
     private ServerSocket server;
     private final int port = 80;
+    private volatile boolean isRunning;
 
     Router() {
         try {
-            routingTable = new HashMap<>();
             server = new ServerSocket(port);
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            System.err.println("Failed to start server: " + e.getMessage());
         }
     }
 
@@ -25,37 +30,99 @@ public class Router {
     }
 
     public void start() {
-        new Thread(() -> {
-            listenNewClients();
-        }).start();
+        isRunning = true;
+        threadPool.submit(this::listenNewClients);
     }
 
     private void listenNewClients() {
-        while(true) {
+        while (isRunning) {
             try {
                 Socket socket = server.accept();
-                addClient(socket);
-            } catch (Exception e) {
-                System.err.println(e.getMessage());
+                threadPool.submit(() -> handleClient(socket));
+            } catch (IOException e) {
+                if (isRunning) {
+                    System.err.println("Error accepting client: " + e.getMessage());
+                }
             }
         }
     }
 
-    private void addClient(Socket socket) {
+    private void handleClient(Socket socket) {
+        String clientIp = null;
         try {
             InputStream inputStream = socket.getInputStream();
             byte[] bytes = new byte[256];
             int status = inputStream.read(bytes);
             String[] attributes = parseCommand(bytes);
-            System.out.println("Router info: new client connected " + attributes[1] + " " + attributes[2]);
-            routingTable.put(attributes[1], new Client(attributes[1], attributes[2]));
+            clientIp = attributes[1];
+            String clientMac = attributes[2];
+
+            routingTable.put(clientIp, new RouterClient(clientIp, clientMac, socket));
+            System.out.println("Router info: new client connected " + clientIp + " " + clientMac);
+
+            while (isRunning && !socket.isClosed()) {
+                byte[] message = routingTable.get(clientIp).getClientMessage();
+                if (message != null) {
+                    processCommand(clientIp, message);
+                }
+            }
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            System.err.println("Error handling client: " + e.getMessage());
+        } finally {
+            try {
+                if (clientIp != null) {
+                    routingTable.remove(clientIp);
+                    socket.close();
+                }
+            } catch (IOException e) {
+                System.err.println("Error closing socket: " + e.getMessage());
+            }
+        }
+    }
+
+    private void processCommand(String clientIp, byte[] message) {
+        String[] attributes = parseCommand(message);
+        RouterClient client = routingTable.get(clientIp);
+
+        if ("PING".equals(attributes[0])) {
+            String targetIp = attributes[1];
+            boolean doesExist = routingTable.containsKey(targetIp);
+
+            if (doesExist && routingTable.get(targetIp).socket().isConnected()) {
+                long time = -System.currentTimeMillis();
+                time += System.currentTimeMillis();
+                System.out.println("Router info: ping request from: " + clientIp + " to " + targetIp);
+                client.sendMessageClient("Answer from " + targetIp + ": bytes=32 time=" + time + "ms TTL=1");
+            } else {
+                System.out.println("Router warning: ping request from: " + clientIp + " to " + targetIp + " failed");
+                client.sendMessageClient("Checking the network could not find: " + targetIp);
+            }
+        } else if ("DISCONNECT".equals(attributes[0])) {
+            try {
+                System.out.println("Router info: closed the connection with " + clientIp);
+                routingTable.remove(clientIp);
+                client.socket().close();
+            } catch (IOException e) {
+                System.out.println("Router warning: closing connection with " + clientIp + " failed");
+            }
         }
     }
 
     private String[] parseCommand(byte[] data) {
         String string = new String(data);
         return string.trim().split(" ");
+    }
+
+    public void stop() {
+        isRunning = false;
+        threadPool.shutdown();
+        try {
+            if (!threadPool.awaitTermination(5, TimeUnit.SECONDS)) {
+                threadPool.shutdownNow();
+            }
+            server.close();
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Error stopping router: " + e.getMessage());
+        }
     }
 }

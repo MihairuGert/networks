@@ -1,7 +1,9 @@
 package org.lab1;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Scanner;
 
 public class Client {
     public String getIp() {
@@ -14,6 +16,7 @@ public class Client {
 
     private String ip;
     private final String mac;
+    private Socket router;
 
     public Client() {
         ip = generateIp();
@@ -27,20 +30,57 @@ public class Client {
 
     public static void main(String[] args) {
         Client client = new Client();
-        client.connectToRouter("localhost", 80);
+        try {
+            client.connectToRouter("localhost", 80);
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            return;
+        }
+        Scanner scanner = new Scanner(System.in);
+        scanner.useDelimiter("\n");
+        while (true) {
+            String command = scanner.next();
+            try {
+                String response = client.commandRouter(command);
+                System.out.println(response);
+            } catch (Exception e) {
+                System.err.println(e.getMessage());
+            }
+        }
+    }
+
+    public String commandRouter(String command) throws IOException {
+        switch (command.trim().split(" ")[0]) {
+            case "PING":
+                router.getOutputStream().write(command.getBytes());
+                router.getOutputStream().flush();
+                byte[] response = new byte[256];
+                int status = router.getInputStream().read(response);
+                return new String(response).trim();
+            case "DISCONNECT":
+                router.getOutputStream().write("DISCONNECT".getBytes());
+                router.getOutputStream().flush();
+                router.close();
+                return "Successfully disconnected.";
+            case "CONNECT":
+                connectToRouter(command.trim().split(" ")[1], 80);
+                return "Successfully connected.";
+            default:
+                return """
+                        Try commands:
+                        \t PING <IP Address>
+                        \t DISCONNECT
+                        \t CONNECT <Router IP Address>""";
+        }
     }
 
     public void connectToRouter(String ip, int port) {
-        try (Socket socket = new Socket(ip, port)) {
-            String localIp = getLocalIp();
-            if (localIp == null) {
-                socket.close();
-                return;
-            }
-            String sendString = "CONNECT " + localIp + " " + mac;
-            socket.getOutputStream().write(sendString.getBytes());
+        try {
+            router = new Socket(ip, port);
+            String sendString = "CONNECT " + this.ip + " " + mac;
+            router.getOutputStream().write(sendString.getBytes());
         } catch (Exception e) {
-            System.err.println(e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 
