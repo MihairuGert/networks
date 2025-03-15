@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,6 +67,12 @@ public class Router {
                 byte[] message = pingMap.get(arpTable.get(clientIp)).getClientMessage();
                 if (message != null) {
                     processCommand(clientMac, message);
+                } else {
+                    String mac = arpTable.get(clientIp);
+                    arpTable.remove(clientIp);
+                    pingMap.remove(mac);
+                    socket.close();
+                    System.out.println("Router warning: client " + clientIp + " disconnected");
                 }
             }
         } catch (IOException e) {
@@ -92,7 +99,7 @@ public class Router {
             long time = -System.currentTimeMillis();
             boolean doesExist = arpTable.containsKey(targetIp);
 
-            if (doesExist && pingMap.get(arpTable.get(targetIp)).socket().isConnected()) {
+            if (doesExist && !pingMap.get(arpTable.get(targetIp)).socket().isClosed()) {
                 time += System.currentTimeMillis();
                 System.out.println("Router info: ping request from: " + client.ip() + " to " + targetIp);
                 client.sendMessageClient("Answer from " + targetIp + ": bytes=32 time=" + time + "ms TTL=1");

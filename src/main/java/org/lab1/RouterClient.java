@@ -21,7 +21,6 @@ public record RouterClient(String ip,
             int status = socket.getInputStream().read(data);
             return data;
         } catch (IOException e) {
-            e.printStackTrace();
             return null;
         }
     }
