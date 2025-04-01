@@ -1,5 +1,7 @@
 package org.lab2.commands;
 
+import java.net.InetAddress;
+
 public class Ip {
     private final int[] ipOct;
 
