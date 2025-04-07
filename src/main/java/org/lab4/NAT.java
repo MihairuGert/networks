@@ -4,6 +4,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLOutput;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class NAT {
@@ -35,7 +36,7 @@ public class NAT {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 server.receive(packet);
 
-                if (isPrivateAddress(packet.getAddress())) {
+                if (isPrivateAddress(new String(packet.getData()).trim().split(":")[2])) {
                     handlePrivatePacket(server, packet);
                 } else {
                     handlePublicPacket(server, packet);
@@ -46,34 +47,34 @@ public class NAT {
         }
     }
 
-    private boolean isPrivateAddress(InetAddress address) {
-        return address.getHostAddress().matches(localIpRegex);
+    private boolean isPrivateAddress(String address) {
+        return address.matches(localIpRegex);
     }
 
     private void handlePrivatePacket(DatagramSocket server, DatagramPacket packet) throws Exception {
         String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
-        String[] parts = message.split(":", 3);
+        String[] parts = message.split(":", 4);
 
-        if (parts.length < 3) {
+        if (parts.length < 4) {
             System.err.println("Invalid message format from private network");
             return;
         }
 
-        int targetPort = Integer.parseInt(parts[0]);
-        String publicMessage = parts[1] + ":" + parts[2];
-        byte[] data = publicMessage.getBytes(StandardCharsets.UTF_8);
-
         int natPort = registerMapping(packet.getAddress().getHostAddress(), packet.getPort());
+
+        int targetPort = Integer.parseInt(parts[0]);
+        String publicMessage = natPort + ":" + parts[1] + ":" + parts[2];
+        byte[] data = publicMessage.getBytes(StandardCharsets.UTF_8);
 
         DatagramPacket outgoing = new DatagramPacket(
                 data,
                 data.length,
-                InetAddress.getByName(publicIp),
+                InetAddress.getByName("localhost"),
                 targetPort
         );
 
         System.out.printf("NAT: Forwarding private [%s:%d] -> public [%s:%d]%n",
-                packet.getAddress().getHostAddress(),
+                parts[2],
                 packet.getPort(),
                 publicIp,
                 targetPort);

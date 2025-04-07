@@ -11,7 +11,7 @@ public class RemoteClient {
 
     public RemoteClient() {
         ip = "57.51.3.120";
-        port = 80;
+        port = 1204;
     }
 
     public static void main(String[] args) {
@@ -20,7 +20,7 @@ public class RemoteClient {
     }
 
     private int processPort(byte[] data) {
-        String[] string = new String(data).split(" ");
+        String[] string = new String(data).split(":");
         int port = Integer.parseInt(string[0]);
         if (port <= 65535 && port >= 0) {
             return port;
@@ -36,8 +36,12 @@ public class RemoteClient {
                 socket.receive(packet);
 
                 int port = processPort(packet.getData());
-                byte[] responseBuffer = (port + "Hello!!!").getBytes();
+                if (port == -1) {
+                    continue;
+                }
+                byte[] responseBuffer = (port+ ":100.100.100.100:"+ip + ":Hello!!!").getBytes();
                 DatagramPacket responsePacket = new DatagramPacket(responseBuffer, responseBuffer.length, packet.getAddress(), packet.getPort());
+                System.out.println("RC: " + port+ ":100.100.100.100:"+ip + ":Hello!!!");
                 socket.send(responsePacket);
              }
         } catch (Exception e) {

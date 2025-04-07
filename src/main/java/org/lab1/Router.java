@@ -37,7 +37,7 @@ public class Router {
     public void start() {
         isRunning = true;
         threadPool.submit(this::listenNewClients);
-        NAT nat = new NAT("100.100.100.100", "192\\.168\\.+");
+        NAT nat = new NAT("100.100.100.100", "192.168.+");
         threadPool.submit(() -> {
           nat.listen(800);
         });

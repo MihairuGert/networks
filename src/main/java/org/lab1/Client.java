@@ -67,6 +67,22 @@ public class Client {
         return null;
     }
 
+    public void askRemote(String ip, int port) {
+        try (DatagramSocket socket = new DatagramSocket(13245)) {
+            byte[] data = ("1204:57.51.3.120:"+ this.ip +":Hello Remote!!").getBytes();
+            DatagramPacket packet = new DatagramPacket(data, data.length, InetAddress.getByName(ip), port);
+            socket.send(packet);
+
+            byte[] buffer = new byte[1024];
+            DatagramPacket responsePacket = new DatagramPacket(buffer, buffer.length);
+            socket.receive(responsePacket);
+
+            System.out.println(new String(responsePacket.getData()).trim());
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+        }
+    }
+
     public static void main(String[] args) {
         Client client = new Client();
         client.setIp(client.getIpFromDHCP());
@@ -76,6 +92,8 @@ public class Client {
             System.err.println(e.getMessage());
             return;
         }
+        client.askRemote("localhost", 800);
+
         Scanner scanner = new Scanner(System.in);
         scanner.useDelimiter("\n");
         while (true) {
