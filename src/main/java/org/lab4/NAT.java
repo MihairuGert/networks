@@ -117,7 +117,7 @@ public class NAT {
         server.send(response);
     }
 
-    private synchronized int registerMapping(String privateIp, int privatePort) {
+    private int registerMapping(String privateIp, int privatePort) {
         int natPort = generatePort(privateIp, privatePort);
         portMapping.put(natPort, new AddressPort(privateIp, privatePort));
         return natPort;
